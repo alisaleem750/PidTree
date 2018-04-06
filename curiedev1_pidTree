@@ -1,0 +1,150 @@
+#!/bin/bash
+#########################
+##Prgram: curiedev1_pidTree
+##Author: Ali Saleem
+##Version: 1.0
+##Date: 21/03/2018
+##Description: Takes a pid number as input argument and prints a tree for up to three generations
+## at a higher and lower branch on the tree (parent, grandparent, great grandparent, child, grandchild, great grandchild) 
+#########################
+
+pid=$1
+ppid=""
+gpid=""
+ggpid=""
+cpids=""
+gcpids=""
+ggcpids=""
+commandNames=""
+networkName=""
+
+# Gets the parents pid number, then checks this number is greater or equal to 1, if it is, it'll check for
+# the parent pid for this program and then print the information about this pid. Otherwise don't print anything
+# for this branch
+function getPpid(){
+	ppid=`ps -ef | awk '$2'==$pid | awk '{print $3}'`
+	
+	if [ $ppid -ge 1 ]
+	then
+		getGpid
+		echo -e "\n\t\t* Parent PID: \e[33m"$ppid"\e[39m"
+		getCommandName $ppid
+		echo -e "\t\t* Parent command Name: \e[92m"$commandName"\e[39m"
+		getNetworkName $ppid
+		echo -e "\t\t* Parent network connection: \e[91m"$networkName"\e[39m"
+	fi
+}
+
+# Similar to getPpid. Gets and displays information for the grandparent pid.
+function getGpid(){
+	gpid=`ps -ef | awk '$2'==$ppid | awk '{print $3}'`
+
+	if [ $gpid -ge 1 ]
+	then
+		getGGpid
+		echo -e "\n\t* Grandparent PID: \e[33m"$gpid"\e[39m"
+		getCommandName $gpid
+		echo -e "\t* Grandparent command Name: \e[92m"$commandName"\e[39m"
+		getNetworkName $gpid
+		echo -e "\t* Grandparent network connection: \e[91m"$networkName"\e[39m"
+	fi
+}
+
+# Similar to previous two functions, but doesn't check for the parent pid of the pid obtained here, as it is
+# the highest branch of the tree (great grandparent)
+function getGGpid(){
+	ggpid=`ps -ef | awk '$2'==$gpid | awk '{print $3}'`
+	
+	if [ $ggpid -ge 1 ]
+	then
+		echo -e "\n* Great Grandparent PID: \e[33m"$ggpid"\e[39m"
+		getCommandName $ggpid
+		echo -e "* Great Grandparent command name: \e[92m"$commandName"\e[39m"
+		getNetworkName $ggpid
+		echo -e "* Great Grandparent network connection: \e[91m"$networkName"\e[39m"
+	fi
+}
+
+# Gets all the children pids of the original pid, storing them in an array, it then prints the information about
+# a child, before checking for the children of the child pid. It then goes to the next child in the array and repeat
+# the process.
+function getCpid(){
+	cpids=`ps -ef | awk '$3'==$pid | awk '{print $2}'`
+	
+	for childpid in $cpids
+	do	
+		echo -e "\n\t\t\t\t* Child PID: \e[33m"$childpid"\e[39m"
+		getCommandName $childpid
+		echo -e "\t\t\t\t* Child command name: \e[92m"$commandName"\e[39m"
+		getNetworkName $childpid
+		echo -e "\t\t\t\t* Child network connection: \e[91m"$networkName"\e[39m"
+		getGCpid $childpid
+	done
+}
+
+# Similar to function above to obtain information about grandchildren pids. Takes a pid number as input, which
+# is the parent pid for the pids we need to obtain at this level of the tree.
+function getGCpid(){
+	gcpids=`ps -ef | awk '$3'==$1 | awk '{print $2}'`
+
+	for grandchildpid in $gcpids
+    do
+			echo -e "\n\t\t\t\t\t* Grandchild PID: \e[33m"$grandchildpid"\e[39m"
+			getCommandName $grandchildpid
+			echo -e "\t\t\t\t\t* Grandchild command name: \e[92m"$commandName"\e[39m"
+			getNetworkName $grandchildpid
+			echo -e "\t\t\t\t\t* Grandchild network connection: \e[91m"$networkName"\e[39m"
+            getGGCpid $grandchildpid
+    done
+
+}
+
+# Similar to previous two functions, but as this is the lowest level of the tree (leaf), it doesn't check
+# for the children of the pids obtained on this level and only displays the information for the great grandchildren pids.
+function getGGCpid(){
+	ggcpids=`ps -ef | awk '$3'==$1 | awk '{print $2}'`
+
+	for greatgrandchildpid in $ggcpids
+    do
+		echo -e "\n\t\t\t\t\t\t* Great Grandchild PID: \e[33m"$greatgrandchildpid"\e[39m"
+		getCommandName $greatgrandchildpid
+		echo -e "\t\t\t\t\t\t* Great Grandchild command name: \e[92m"$commandName"\e[39m"
+		getNetworkName $greatgrandchildpid
+		echo -e "\t\t\t\t\t\t* Great Grandchild network connection: \e[91m"$networkName"\e[39m"
+    done
+}
+
+# Takes a pid number as an argument, and finds the command name for that pid, assigning it to the commandName
+# global variable
+function getCommandName(){
+	commandName=`ps ho cmd $1`
+}
+
+# Takes a pid number as an argument, and finds the network connection for that pid, assigning it to the networkName
+# global variable
+function getNetworkName(){
+	networkName=`sudo netstat -p | grep "tcp" | grep '\<'$1'\>/' | awk '{print $5}'`
+	if [ -z "$networkName" ]
+	then
+		networkName="None"
+	fi
+}
+
+# Checks if the pid passed as an argument into the script is valid, if it is then it starts constructing the tree.
+# Otherwise displays a message stating that the program associated with the input pid does not exist.
+function getTree(){
+	getCommandName $pid
+	if [ "$commandName" ]
+	then
+		getPpid
+		echo -e "\n\t\t\t* PID: \e[33m"$pid"\e[39m"
+		echo -e "\t\t\t* Command name: \e[92m"$commandName"\e[39m"
+		getNetworkName $pid
+		echo -e "\t\t\t* Network connection: \e[91m"$networkName"\e[39m"
+		getCpid
+	else
+		echo "Program does not exist"
+	fi
+}
+
+getTree
